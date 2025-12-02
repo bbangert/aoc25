@@ -29,13 +29,15 @@ defmodule Day1 do
 
   defp execute_commands([command | rest], starting_position, count, include_spins) do
     {new_position, spins} = execute_command(starting_position, command)
-    new_count = case new_position do
-      0 when include_spins and spins > 0 -> count + spins
-      0 when include_spins -> count + 1
-      0 -> count + 1
-      _ when include_spins -> count + spins
-      _ -> count
-    end
+
+    new_count =
+      case new_position do
+        0 when include_spins -> count + max(spins, 1)
+        _ when include_spins -> count + spins
+        0 -> count + 1
+        _ -> count
+      end
+
     execute_commands(rest, new_position, new_count, include_spins)
   end
 
