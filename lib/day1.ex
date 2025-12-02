@@ -42,23 +42,16 @@ defmodule Day1 do
   defp execute_commands([], _starting_position, count, _include_spins), do: count
 
   def execute_command(starting_position, {:left, amount}) do
-    abs_amount = rem(amount, 100)
-    new_pos = rem(starting_position - abs_amount + 100, 100)
-
-    wraps_past_zero = starting_position > 0 and starting_position <= abs_amount
+    remainder = rem(amount, 100)
+    new_pos = rem(starting_position - remainder + 100, 100)
+    wraps_past_zero = starting_position > 0 and starting_position <= remainder
     spins = div(amount, 100) + if wraps_past_zero, do: 1, else: 0
-
     {new_pos, spins}
   end
 
   def execute_command(starting_position, {:right, amount}) do
     total = starting_position + amount
-    is_special_case = starting_position == 99 and rem(amount, 100) == 0 and amount > 0
-
-    new_pos = if is_special_case, do: 0, else: rem(total, 100)
-    spins = if is_special_case, do: div(amount, 500), else: div(total, 100)
-
-    {new_pos, spins}
+    {rem(total, 100), div(total, 100)}
   end
 
   defp parse_line("L" <> amount), do: {:left, String.to_integer(amount)}
