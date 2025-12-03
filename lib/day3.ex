@@ -38,7 +38,7 @@ defmodule Day3 do
     {max_digit, relative_pos} =
       search_range
       |> Enum.with_index()
-      |> Enum.max_by(fn {digit, _idx} -> digit end)
+      |> Enum.max_by(&elem(&1, 0))
 
     absolute_pos = start_pos + relative_pos
     retain_larger_digits(input, n - 1, absolute_pos + 1, [max_digit | acc])
