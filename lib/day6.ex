@@ -28,15 +28,55 @@ defmodule Day6 do
   """
   def part2(input) do
     {number_lines, operator_line} = parse_lines(input)
+    {number_lines, operator_line} = normalize_width(number_lines, operator_line)
+    width = String.length(operator_line)
 
-    number_lines
-    |> pad_to_match(operator_line)
-    |> to_char_columns()
-    |> attach_operators(operator_line)
-    |> group_into_problems()
-    |> Enum.map(&solve_problem/1)
-    |> Enum.sum()
+    {total, answer, _op} =
+      Enum.reduce(0..(width - 1), {0, 0, nil}, fn col, acc ->
+        process_column(col, number_lines, operator_line, acc)
+      end)
+
+    total + answer
   end
+
+  defp normalize_width(number_lines, operator_line) do
+    max_len = [operator_line | number_lines] |> Enum.map(&String.length/1) |> Enum.max()
+    {
+      Enum.map(number_lines, &String.pad_trailing(&1, max_len)),
+      String.pad_trailing(operator_line, max_len)
+    }
+  end
+
+  defp process_column(col, number_lines, operator_line, {total, answer, op}) do
+    {answer, op} = maybe_start_new_problem(String.at(operator_line, col), answer, op)
+
+    case read_column_number(number_lines, col) do
+      :space -> {total + answer, answer, op}
+      number -> {total, accumulate(op, answer, number), op}
+    end
+  end
+
+  defp maybe_start_new_problem("*", _answer, _op), do: {1, "*"}
+  defp maybe_start_new_problem("+", _answer, _op), do: {0, "+"}
+  defp maybe_start_new_problem(_char, answer, op), do: {answer, op}
+
+  defp read_column_number(lines, col) do
+    Enum.reduce(lines, {0, true}, fn line, {num, is_space} ->
+      case String.at(line, col) do
+        char when char >= "0" and char <= "9" ->
+          {num * 10 + String.to_integer(char), false}
+        _ ->
+          {num, is_space}
+      end
+    end)
+    |> then(fn
+      {_num, true} -> :space
+      {num, false} -> num
+    end)
+  end
+
+  defp accumulate("*", answer, number), do: answer * number
+  defp accumulate("+", answer, number), do: answer + number
 
   defp parse_lines(input) do
     lines = input |> String.split("\n") |> Enum.filter(&(&1 != ""))
@@ -47,53 +87,6 @@ defmodule Day6 do
   defp parse_numbers(line), do: line |> String.split() |> Enum.map(&String.to_integer/1)
 
   defp parse_operators(line), do: String.split(line)
-
-  defp pad_to_match(number_lines, operator_line) do
-    max_len = [operator_line | number_lines] |> Enum.map(&String.length/1) |> Enum.max()
-    Enum.map(number_lines, &String.pad_trailing(&1, max_len))
-  end
-
-  defp to_char_columns(lines) do
-    lines
-    |> Enum.map(&String.graphemes/1)
-    |> Enum.zip_with(&Function.identity/1)
-  end
-
-  defp attach_operators(columns, operator_line) do
-    op_chars = String.graphemes(String.pad_trailing(operator_line, length(columns)))
-    Enum.zip(columns, op_chars)
-  end
-
-  defp group_into_problems(cols_with_ops) do
-    cols_with_ops
-    |> Enum.chunk_by(&separator_column?/1)
-    |> Enum.reject(fn [first | _] -> separator_column?(first) end)
-  end
-
-  defp separator_column?({digits, op}), do: op == " " and Enum.all?(digits, &(&1 == " "))
-
-  defp solve_problem(cols_with_ops) do
-    operator = find_operator(cols_with_ops)
-    numbers = extract_numbers(cols_with_ops)
-    apply_operator(numbers, operator)
-  end
-
-  defp find_operator(cols_with_ops) do
-    Enum.find_value(cols_with_ops, fn {_, op} -> if op != " ", do: op end)
-  end
-
-  defp extract_numbers(cols_with_ops) do
-    cols_with_ops
-    |> Enum.map(fn {digits, _} -> column_to_number(digits) end)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp column_to_number(digits) do
-    case digits |> Enum.join() |> String.trim() do
-      "" -> nil
-      s -> String.to_integer(s)
-    end
-  end
 
   defp transpose(rows) do
     rows
