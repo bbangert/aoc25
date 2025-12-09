@@ -41,59 +41,72 @@ defmodule Day9 do
   # Between critical y values, the valid range is constant (determined by vertical edges)
   defp build_valid_ranges(points) do
     vertical_edges = get_vertical_edges(points)
-    horizontal_edges = get_horizontal_edges(points)
-
-    # Get all unique y-coordinates from input points (critical y values)
-    critical_ys = points |> Enum.map(fn {_, y} -> y end) |> Enum.uniq() |> Enum.sort()
-
-    # Horizontal edge x-coordinates by y
-    horiz_xs_by_y =
-      horizontal_edges
-      |> Enum.map(fn {y, x_min, x_max} -> {y, x_min, x_max} end)
-      |> Enum.group_by(fn {y, _, _} -> y end)
-      |> Map.new(fn {y, edges} ->
-        all_xs = Enum.flat_map(edges, fn {_, x_min, x_max} -> [x_min, x_max] end)
-        {y, {Enum.min(all_xs), Enum.max(all_xs)}}
-      end)
+    horizontal_bounds = build_horizontal_bounds(points)
+    critical_ys = get_critical_ys(points)
 
     valid_ranges =
-      for y <- critical_ys, into: %{} do
-        # Vertical edge crossings at this y (bounds the interior)
-        crossing_xs =
-          vertical_edges
-          |> Enum.filter(fn {_, ey_min, ey_max} -> y >= ey_min and y < ey_max end)
-          |> Enum.map(fn {ex, _, _} -> ex end)
+      critical_ys
+      |> Map.new(&{&1, compute_valid_range(&1, vertical_edges, horizontal_bounds)})
 
-        # Combine with horizontal edge bounds at this y
-        {horiz_min, horiz_max} = Map.get(horiz_xs_by_y, y, {nil, nil})
-
-        all_xs =
-          crossing_xs ++
-            if(horiz_min, do: [horiz_min, horiz_max], else: [])
-
-        if all_xs == [] do
-          {y, nil}
-        else
-          {y, {Enum.min(all_xs), Enum.max(all_xs)}}
-        end
-      end
-
-    # Convert to tuple for O(1) random access in binary search
     {valid_ranges, List.to_tuple(critical_ys)}
   end
 
+  defp get_critical_ys(points) do
+    points
+    |> Enum.map(fn {_, y} -> y end)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp build_horizontal_bounds(points) do
+    points
+    |> get_horizontal_edges()
+    |> Enum.group_by(fn {y, _, _} -> y end)
+    |> Map.new(fn {y, edges} ->
+      edges
+      |> Enum.flat_map(fn {_, x_min, x_max} -> [x_min, x_max] end)
+      |> xs_to_range()
+      |> then(&{y, &1})
+    end)
+  end
+
+  defp compute_valid_range(y, vertical_edges, horizontal_bounds) do
+    crossing_xs = get_crossing_xs(y, vertical_edges)
+    horiz_range = Map.get(horizontal_bounds, y)
+
+    crossing_xs
+    |> maybe_add_horiz_bounds(horiz_range)
+    |> xs_to_range()
+  end
+
+  defp get_crossing_xs(y, vertical_edges) do
+    vertical_edges
+    |> Enum.filter(fn {_x, edge_y_min, edge_y_max} -> y >= edge_y_min and y < edge_y_max end)
+    |> Enum.map(fn {edge_x, _, _} -> edge_x end)
+  end
+
+  defp maybe_add_horiz_bounds(xs, nil), do: xs
+  defp maybe_add_horiz_bounds(xs, {horiz_x_min, horiz_x_max}), do: [horiz_x_min, horiz_x_max | xs]
+
+  defp xs_to_range([]), do: nil
+  defp xs_to_range(xs), do: {Enum.min(xs), Enum.max(xs)}
+
   defp get_vertical_edges(points) do
     points
-    |> Enum.chunk_every(2, 1, [hd(points)])
+    |> get_polygon_edges()
     |> Enum.filter(fn [{x1, _}, {x2, _}] -> x1 == x2 end)
     |> Enum.map(fn [{x, y1}, {_, y2}] -> {x, min(y1, y2), max(y1, y2)} end)
   end
 
   defp get_horizontal_edges(points) do
     points
-    |> Enum.chunk_every(2, 1, [hd(points)])
+    |> get_polygon_edges()
     |> Enum.filter(fn [{_, y1}, {_, y2}] -> y1 == y2 end)
     |> Enum.map(fn [{x1, y}, {x2, _}] -> {y, min(x1, x2), max(x1, x2)} end)
+  end
+
+  defp get_polygon_edges(points) do
+    Enum.chunk_every(points, 2, 1, [hd(points)])
   end
 
   # Only check critical y values within range - valid range is constant between them
